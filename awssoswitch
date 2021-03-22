@@ -33,7 +33,8 @@ verify_awsso_deps() {
   fi
 }
 
-verify_awsso_setup() {
+verify_awsso_setup()
+{
   if [ ! -f $aws_sso_configpath ]; then
     awsso_setup
   fi
@@ -101,7 +102,7 @@ awsso_setup() {
 
   # Write DEFAULTS
   touch $aws_sso_configpath
-  cat >>$aws_sso_configpath <<HELP
+  cat >$aws_sso_configpath <<HELP
 AWS_CONFIGURE_SSO_DEFAULT_SSO_START_URL=https://${DEFAULT_SSO_NAME}.awsapps.com/start
 AWS_CONFIGURE_SSO_DEFAULT_SSO_REGION=${DEFAULT_SSO_REGION}
 DEFAULT_AWS_REGION=${DEFAULT_AWS_REGION}
@@ -170,6 +171,6 @@ HELP
   return
 }
 
-# Complettion and autoload AWS env
+# Completion and autoload AWS env
 [ -f $HOME/.aws/config ] && complete -W "$(cat $HOME/.aws/config | grep -Eo '\[.*\]' | tr -d '[]' | cut -d " " -f 2)" "awsso"
 [ -f $HOME/.aws/last_used_profile ] && export AWS_PROFILE=$(command cat $HOME/.aws/last_used_profile)
