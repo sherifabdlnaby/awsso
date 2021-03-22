@@ -10,7 +10,7 @@ A small ad-hoc script that wraps AWS SSO and aws-sso-util for my shell luxury
 
 ## Setup
 ```shell
-curl -o- https://raw.githubusercontent.com/sherifabdlnaby/awsso/master/setup.sh | bash
+curl -o- -s https://raw.githubusercontent.com/sherifabdlnaby/awsso/master/setup.sh | bash
 ```
 
 
