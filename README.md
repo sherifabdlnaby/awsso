@@ -12,6 +12,7 @@ A small ad-hoc script that wraps AWS SSO and aws-sso-util for my shell luxury
 ```shell
 curl -o- -s https://raw.githubusercontent.com/sherifabdlnaby/awsso/master/setup.sh | bash
 ```
+⚠️ Installation appends to your .zshrc or .bashrc, so handle the duplication.
 
 
 Help:
