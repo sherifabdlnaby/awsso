@@ -40,7 +40,24 @@ awsso_login() {
   verify_deps
   verify_setup
   set -eu
-  profile=$1
+
+
+
+  # Use last used profile if no argument was supplied
+  if [ "$#" -ne 1 ]
+  then
+    if  [ -f ~/.aws/last_used_profile ]
+    then
+      profile="$(command cat  ~/.aws/last_used_profile)"
+      printf "\nUsing last used porfile \033[0;33m \033[4;33m"$profile"\033[0m profile...\n\n"
+    else
+      echo "Please login with a profile first."
+      return 1;
+    fi
+    else
+      profile=$1
+  fi
+
 
   # Check if Profile Exits
   (cat "$HOME"/.aws/config | grep \\\[profile\ "$profile"\\\] >/dev/null) || {
@@ -71,6 +88,11 @@ awsso_init() {
  [ -f $HOME/.aws/config ] && complete -W "$(cat $HOME/.aws/config | grep -Eo '\'''\\[.*\\]''\'' | tr -d '\''[]'\'' | cut -d " " -f 2)" awsso
  [ -f $HOME/.aws/last_used_profile ] && export AWS_PROFILE=$(command cat $HOME/.aws/last_used_profile )
 '
+}
+
+awsso_logout() {
+  aws sso logout
+  rm -rf ~/.aws/sso
 }
 
 awsso_setup() {
@@ -156,14 +178,15 @@ fail() {
 show_help() {
   cat <<HELP
 Usage:
-    $0 [OPTION] <sso-profile>
+    awsso [OPTION] <sso-profile>
 OPTIONS:
     --help, -h:    Show this help and exit
     --setup:       Setup AWS SSO config
+    --logout:       Setup AWS SSO config
     --populate:    Populate AWS Config with all your SSO roles
     --init:        Print Script to be appended to you ~/.bashrc or ~/.zshrc
 Example:
-    $0 sso-profile-1
+    awsso sso-profile-1
 HELP
 
   # Fail with general error if status code passed
@@ -179,80 +202,50 @@ HELP
   exit $exit_code
 }
 
-argument_expected() {
-  fail "$1 expected an argument"
-}
-
-finally() {
-  if [ ! -z $login ]; then
-    awsso_login $login
-    exit 0
-  fi
-
-  if [ ! -z $setup ]; then
-    awsso_setup
-    exit 0
-  fi
-
-  if [ ! -z $populate ]; then
-    awsso_populate
-    exit 0
-  fi
-
-  if [ ! -z $init ]; then
-    awsso_init
-    exit 0
-  fi
-}
-
 check_args() {
-  while [ ! -z "$1" ]; do
+  if [ -z "$1" ]
+  then
+    awsso_login $1
+  else
+    while [ ! -z "$1" ]; do
     local arg="$1"
     case "$1" in
     -h | --help)
-      local help=0
-      shift
+      show_help
+      exit 0
       ;;
     --setup)
       # Simple boolean flag–call function here
-      setup="yes"
-      shift
+      awsso_setup
+      exit 0
       ;;
     --populate)
       # Simple boolean flag–call function here
-      populate="true"
-      shift
+      awsso_populate
+      exit 0
+      ;;
+    --logout)
+      # Simple boolean flag–call function here
+      awsso_logout
+      exit 0
       ;;
     --init)
       # Simple boolean flag–call function here
-      init="true"
-      shift
+      awsso_init
+      exit 0
       ;;
     *)
       if [ -z $1 ] || [[ "$1" == -* ]]; then
-        argument_expected $arg
+        fail "expected an argument"
       fi
-
-      login=$1
-      shift
       ;;
     esac
   done
-
-  if [ ! -z $help ]; then
-    show_help $help
   fi
 
-  finally
-
-  exit 0
 }
 
 main() {
-  if [ -z $1 ]; then
-    show_help
-  fi
-
   check_args "$@"
 }
 
