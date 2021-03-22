@@ -7,6 +7,13 @@ A small ad-hoc script that wraps AWS SSO and aws-sso-util for my shell luxury
 2. Export the temp SSO Credentials to `~/.aws/credientals` (useful when wanting a local docker container to have AWS Access)
 3. Setup AWS_PROFILE on shell init with the last used sso profile.
 
+
+## Setup
+```shell
+curl -o- https://raw.githubusercontent.com/sherifabdlnaby/awsso/master/setup.sh | bash
+```
+
+
 Help:
 ```text
 Usage:

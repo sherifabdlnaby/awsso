@@ -14,3 +14,6 @@ cat >> ~/.bashrc <<CONFIG
 [ ! -f /usr/local/etc/awsso ] || source /usr/local/etc/awsso
 
 CONFIG
+
+
+echo " \n  Setup Complete \n\n Please also restart your shell ;) \n\n "
