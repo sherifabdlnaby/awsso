@@ -1,0 +1,259 @@
+#!/bin/bash
+normal=$(tput sgr0)
+bold=$(tput bold)
+red=$(tput setaf 1)
+green=$(tput setaf 2)
+yellow=$(tput setaf 3)
+blue=$(tput setaf 4)
+magenta=$(tput setaf 5)
+cyan=$(tput setaf 6)
+underline=$(tput smul)
+script_path=$0
+script_dir=$(dirname $0)
+config_path=/usr/local/etc/awsso
+config_formatter=/usr/local/etc/awsso_formatter.py
+
+verify_deps() {
+  mkdir -p ~/.aws
+  touch ~/.aws/config
+  touch ~/.aws/credentials
+
+  # Make Sure DEPs are installed
+  if ! type "aws-sso-util" >/dev/null; then
+    printf "\n• Please Install ${bold}${green}aws-sso-util${normal}: https://github.com/benkehoe/aws-sso-util \n\n"
+    return 1
+  fi
+
+  if ! type "aws-export-credentials" >/dev/null; then
+    printf "\n• Please Install ${bold}${green}aws-export-credentials${normal}: https://github.com/benkehoe/aws-export-credentials \n\n"
+    return 1
+  fi
+}
+
+verify_setup() {
+  if [ ! -f $config_path ]; then
+    awsso_setup
+  fi
+}
+
+awsso_login() {
+  verify_deps
+  verify_setup
+  set -eu
+  profile=$1
+
+  # Check if Profile Exits
+  (cat "$HOME"/.aws/config | grep \\\[profile\ "$profile"\\\] >/dev/null) || {
+    printf "\n ${red}✘${normal} Profile${red}  ${underline}$profile${normal} Doesn't Exist in ~/.aws/config\n\n"
+    return 1
+  }
+
+  # Login usin SSO Util
+  (aws-sso-util login | tail -1) || {
+    printf "\n ${red}✘${normal} Failed to Login \n"
+    return 1
+  }
+
+  # Export to ENV
+  export AWS_PROFILE=$profile
+
+  # Save Last Used Profile
+  printf $AWS_PROFILE >~/.aws/last_used_profile
+
+  # Put credentials  in ~/.aws/credentials asynchronously
+  (aws-export-credentials --profile $AWS_PROFILE -c $AWS_PROFILE &>/dev/null &)
+
+  printf "\n ${green}✔${normal} Switched to ${yellow} ${underline}$AWS_PROFILE${normal} profile ✨ \n\n"
+}
+
+awsso_init() {
+  echo '
+ [ -f $HOME/.aws/config ] && complete -W "$(cat $HOME/.aws/config | grep -Eo '\'''\\[.*\\]''\'' | tr -d '\''[]'\'' | cut -d " " -f 2)" awsso
+ [ -f $HOME/.aws/last_used_profile ] && export AWS_PROFILE=$(command cat $HOME/.aws/last_used_profile )
+'
+}
+
+awsso_setup() {
+  set -e
+
+  verify_deps
+
+  # AWS SSO
+  prompt "Default SSO Name: \n"
+  read DEFAULT_SSO_NAME
+  prompt "Default SSO Region: \n"
+  read DEFAULT_SSO_REGION
+  prompt "Default AWS Region: \n"
+  read DEFAULT_AWS_REGION
+
+  # Write DEFAULTS
+  touch $config_path
+  cat >>$config_path <<HELP
+AWS_CONFIGURE_SSO_DEFAULT_SSO_START_URL=https://${DEFAULT_SSO_NAME}.awsapps.com/start
+AWS_CONFIGURE_SSO_DEFAULT_SSO_REGION=${DEFAULT_SSO_REGION}
+DEFAULT_AWS_REGION=${DEFAULT_AWS_REGION}
+HELP
+
+}
+
+awsso_populate() {
+  set -e
+
+  verify_deps
+
+  verify_setup
+
+  source $config_path
+
+  if [ -f $config_formatter ]; then
+    aws-sso-util configure populate --region $DEFAULT_AWS_REGION --profile-name-process "python ${script_dir}/formatter.py"
+  else
+    aws-sso-util configure populate --region $DEFAULT_AWS_REGION
+  fi
+}
+
+# Usage: info "message"
+# Example: info "It's Working"
+# Output (to STDOUT): [...] It's Working
+info() {
+  printf "%b" "[${green}...${normal}] $1\n"
+}
+
+# Usage: prompt "question"
+# Example: prompt "What's Your Name?"
+# Output (to STDOUT): [ ? ] What's Your Name?
+prompt() {
+  printf "%b" "[${yellow} ? ${normal}] $1 "
+}
+
+# Usage: error ["message"]
+# Example: error "You're Ugly"
+# Output (to STDERR): [ERROR] /script/name: You're Ugly
+error() {
+  printf "%b" "[${red}ERROR${normal}] ${0}: ${1:-'Unkown Error'}\n" >&2
+}
+
+# Usage: fail "message" [exit_code]
+# Example: fail "Unknown Option" 254
+fail() {
+  error "$1"
+
+  case $2 in
+  '' | *[!0-9]*)
+    exit_code=1
+    ;;
+  *)
+    exit_code=$2
+    ;;
+  esac
+
+  exit $exit_code
+}
+
+
+# Usage: show_help [exit_code]
+# Example: show_help 254
+show_help() {
+  cat <<HELP
+Usage:
+    $0 [OPTION] <sso-profile>
+OPTIONS:
+    --help, -h:    Show this help and exit
+    --setup:       Setup AWS SSO config
+    --populate:    Populate AWS Config with all your SSO roles
+    --init:        Print Script to be appended to you ~/.bashrc or ~/.zshrc
+Example:
+    $0 sso-profile-1
+HELP
+
+  # Fail with general error if status code passed
+  case $1 in
+  '' | *[!0-9]*)
+    exit_code=1
+    ;;
+  *)
+    exit_code=$1
+    ;;
+  esac
+
+  exit $exit_code
+}
+
+argument_expected() {
+  fail "$1 expected an argument"
+}
+
+finally() {
+  if [ ! -z $login ]; then
+    awsso_login $login
+    exit 0
+  fi
+
+  if [ ! -z $setup ]; then
+    awsso_setup
+    exit 0
+  fi
+
+  if [ ! -z $populate ]; then
+    awsso_populate
+    exit 0
+  fi
+
+  if [ ! -z $init ]; then
+    awsso_init
+    exit 0
+  fi
+}
+
+check_args() {
+  while [ ! -z "$1" ]; do
+    local arg="$1"
+    case "$1" in
+    -h | --help)
+      local help=0
+      shift
+      ;;
+    --setup)
+      # Simple boolean flag–call function here
+      setup="yes"
+      shift
+      ;;
+    --populate)
+      # Simple boolean flag–call function here
+      populate="true"
+      shift
+      ;;
+    --init)
+      # Simple boolean flag–call function here
+      init="true"
+      shift
+      ;;
+    *)
+      if [ -z $1 ] || [[ "$1" == -* ]]; then
+        argument_expected $arg
+      fi
+
+      login=$1
+      shift
+      ;;
+    esac
+  done
+
+  if [ ! -z $help ]; then
+    show_help $help
+  fi
+
+  finally
+
+  exit 0
+}
+
+main() {
+  if [ -z $1 ]; then
+    show_help
+  fi
+
+  check_args "$@"
+}
+
+main "$@"
