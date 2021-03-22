@@ -16,4 +16,4 @@ cat >> ~/.bashrc <<CONFIG
 CONFIG
 
 
-echo " \n  Setup Complete \n\n Please also restart your shell ;) \n\n "
+printf "Setup Complete \n\n Please also restart your shell ;)"
